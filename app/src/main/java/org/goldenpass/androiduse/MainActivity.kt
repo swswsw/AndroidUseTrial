@@ -47,12 +47,19 @@ class MainActivity : Activity() {
         val runTaskButton = Button(this).apply {
             text = "RUN DEMO TASK"
             setOnClickListener {
-                if (isAccessibilityServiceEnabled(this@MainActivity)) {
-                    // In a real agent, this would trigger the AI loop.
-                    // For now, we'll just show a toast.
+                val service = UIAgentAccessibilityService.instance
+                if (service != null) {
+                    val task = taskEditText.text.toString()
+                    service.startAgentLoop(task)
                     Toast.makeText(this@MainActivity, "Agent Started: Processing task...", Toast.LENGTH_LONG).show()
+                    // Send app to background so agent can work on other apps
+                    val startMain = Intent(Intent.ACTION_MAIN)
+                    startMain.addCategory(Intent.CATEGORY_HOME)
+                    startMain.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    startActivity(startMain)
                 } else {
                     Toast.makeText(this@MainActivity, "Please enable Accessibility Service first", Toast.LENGTH_SHORT).show()
+                    startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                 }
             }
         }
