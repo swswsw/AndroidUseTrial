@@ -2,16 +2,17 @@ package org.goldenpass.androiduse
 
 import android.graphics.Bitmap
 import android.util.Log
-import com.google.ai.client.generativeai.GenerativeModel
-import com.google.ai.client.generativeai.type.content
+import com.google.firebase.Firebase
+import com.google.firebase.ai.ai
+import com.google.firebase.ai.type.content
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class GeminiAgent(apiKey: String) {
-    // Using Gemini 2.0 Pro Experimental - optimized for complex reasoning and "computer use" tasks
-    private val model = GenerativeModel(
-        modelName = "gemini-2.0-pro-exp-02-05", 
-        apiKey = apiKey
+    // Note: Use Firebase.ai for the new Firebase AI Logic SDK.
+    // Ensure you have google-services.json and AI enabled in Firebase console.
+    private val model = Firebase.ai.generativeModel(
+        modelName = "gemini-2.0-flash" 
     )
 
     suspend fun getNextAction(prompt: String, screenshot: Bitmap, uiTree: String): String? = withContext(Dispatchers.IO) {
@@ -43,15 +44,7 @@ class GeminiAgent(apiKey: String) {
             return@withContext result
         } catch (e: Exception) {
             Log.e("GeminiAgent", "Error generating content", e)
-            // Fallback to 1.5 Pro if 2.0 Pro Experimental is not available for this key
-            return@withContext tryFallback(prompt, screenshot, uiTree)
+            return@withContext null
         }
-    }
-
-    private suspend fun tryFallback(prompt: String, screenshot: Bitmap, uiTree: String): String? {
-        Log.w("GeminiAgent", "Falling back to gemini-1.5-pro")
-        val fallbackModel = GenerativeModel("gemini-1.5-pro", model.apiKey)
-        val response = fallbackModel.generateContent(content { image(screenshot); text(prompt + "\n" + uiTree) })
-        return response.text
     }
 }
