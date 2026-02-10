@@ -11,8 +11,6 @@ import android.view.Display
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.annotation.RequiresApi
-import com.google.firebase.FirebaseApp
-import com.google.firebase.FirebaseOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -46,30 +44,9 @@ class UIAgentAccessibilityService : AccessibilityService() {
         Log.d("UIAgentAccessibilityService", "Service Connected")
         instance = this
 
-        // Manually initialize Firebase if not already initialized via google-services.json
-        try {
-            if (FirebaseApp.getApps(this).isEmpty()) {
-                val apiKey = BuildConfig.GEMINI_API_KEY
-                if (apiKey.isNotEmpty()) {
-                    val options = FirebaseOptions.Builder()
-                        .setApiKey(apiKey)
-                        .setApplicationId("org.goldenpass.androiduse") // Must match your package name
-                        .setProjectId("android-use-trial") // Dummy project ID for manual init
-                        .build()
-                    FirebaseApp.initializeApp(this, options)
-                    Log.d("UIAgentAccessibilityService", "Firebase initialized manually with API Key")
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("UIAgentAccessibilityService", "Firebase initialization failed", e)
-        }
-
+        // Firebase auto-initializes via the google-services plugin and google-services.json
         val apiKey = BuildConfig.GEMINI_API_KEY
-        if (apiKey.isNotEmpty()) {
-            geminiAgent = GeminiAgent(apiKey)
-        } else {
-            Log.e("UIAgentAccessibilityService", "Gemini API Key is missing! Add it to local.properties")
-        }
+        geminiAgent = GeminiAgent(apiKey)
     }
 
     fun startAgentLoop(taskDescription: String) {
