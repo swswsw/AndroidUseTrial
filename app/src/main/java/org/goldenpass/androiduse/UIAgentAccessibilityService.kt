@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import android.graphics.Path
 import android.graphics.Rect
 import android.os.Build
+import android.os.Bundle
 import android.util.Log
 import android.view.Display
 import android.view.accessibility.AccessibilityEvent
@@ -43,10 +44,13 @@ class UIAgentAccessibilityService : AccessibilityService() {
         super.onServiceConnected()
         Log.d("UIAgentAccessibilityService", "Service Connected")
         instance = this
-
-        // Firebase auto-initializes via the google-services plugin and google-services.json
+        
         val apiKey = BuildConfig.GEMINI_API_KEY
-        geminiAgent = GeminiAgent(apiKey)
+        if (apiKey.isNotEmpty()) {
+            geminiAgent = GeminiAgent(apiKey)
+        } else {
+            Log.e("UIAgentAccessibilityService", "Gemini API Key is missing! Add it to local.properties")
+        }
     }
 
     fun startAgentLoop(taskDescription: String) {
@@ -70,10 +74,18 @@ class UIAgentAccessibilityService : AccessibilityService() {
                 return@captureScreenshot
             }
 
+            // Convert Hardware Bitmap to Software Bitmap for better SDK compatibility
+            val softwareBitmap = try {
+                bitmap.copy(Bitmap.Config.ARGB_8888, false)
+            } catch (e: Exception) {
+                Log.e("UIAgentAccessibilityService", "Failed to convert bitmap", e)
+                bitmap
+            }
+
             val uiTree = getClickableElementsJson()
             
             serviceScope.launch {
-                val agentResponse = geminiAgent?.getNextAction(taskDescription, bitmap, uiTree)
+                val agentResponse = geminiAgent?.getNextAction(taskDescription, softwareBitmap, uiTree)
                 if (agentResponse != null) {
                     handleAgentAction(agentResponse, taskDescription)
                 } else {
@@ -92,7 +104,9 @@ class UIAgentAccessibilityService : AccessibilityService() {
 
             val json = JSONObject(jsonStr)
             val action = json.optString("action")
+            val thought = json.optString("thought", "No reasoning provided")
 
+            Log.i("UIAgentAccessibilityService", "Agent Thought: $thought")
             Log.d("UIAgentAccessibilityService", "Agent decided: $action")
 
             when (action) {
@@ -100,7 +114,13 @@ class UIAgentAccessibilityService : AccessibilityService() {
                     val x = json.getDouble("x").toFloat()
                     val y = json.getDouble("y").toFloat()
                     performClickAt(x, y)
-                    delay(2000) // Wait for UI to settle
+                    delay(2000)
+                    processNextStep(taskDescription)
+                }
+                "type" -> {
+                    val text = json.getString("text")
+                    typeText(text)
+                    delay(2000)
                     processNextStep(taskDescription)
                 }
                 "swipe" -> {
@@ -125,6 +145,33 @@ class UIAgentAccessibilityService : AccessibilityService() {
             Log.e("UIAgentAccessibilityService", "Error parsing agent action", e)
             isProcessing = false
         }
+    }
+
+    /**
+     * Types text into the currently focused input field.
+     */
+    private fun typeText(text: String) {
+        val rootNode = rootInActiveWindow ?: return
+        val focusedNode = findFocusedNode(rootNode)
+        if (focusedNode != null) {
+            val arguments = Bundle()
+            arguments.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+            focusedNode.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)
+            focusedNode.recycle()
+        } else {
+            Log.w("UIAgentAccessibilityService", "No focused node found to type text into.")
+        }
+    }
+
+    private fun findFocusedNode(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        if (node.isFocused) return node
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            val focused = findFocusedNode(child)
+            if (focused != null) return focused
+            child.recycle()
+        }
+        return null
     }
 
     @RequiresApi(Build.VERSION_CODES.R)
