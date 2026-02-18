@@ -4,14 +4,19 @@ import android.graphics.Bitmap
 import android.util.Log
 import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.content
+import com.google.ai.client.generativeai.type.generationConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class GeminiAgent(apiKey: String) {
-    // Note: If you face persistent quota issues with 'computer-use-preview', consider switching to 'gemini-1.5-flash'.
+    // Note: 'gemini-2.0-flash' or 'gemini-1.5-flash' are recommended for vision-based UI tasks.
+    // The 'computer-use' models require specific tool definitions which are more complex to implement.
     private val model = GenerativeModel(
-        modelName = "gemini-2.5-computer-use-preview-10-2025",
-        apiKey = apiKey
+        modelName = "gemini-2.0-flash",
+        apiKey = apiKey,
+        generationConfig = generationConfig {
+            responseMimeType = "application/json"
+        }
     )
 
     suspend fun getNextAction(prompt: String, screenshot: Bitmap, uiTree: String): String? = withContext(Dispatchers.IO) {
