@@ -53,7 +53,10 @@ class GeminiAgent(apiKey: String) {
             - Respond ONLY with the JSON object.
         """.trimIndent()
 
-        Log.d("GeminiAgent", "Sending request to Gemini 3 Flash Preview...")
+        Log.d("GeminiAgent", "REQUEST SEND TO LLM:")
+        Log.d("GeminiAgent", "Prompt: $fullPrompt")
+        // Note: Logging the screenshot is not feasible in text logs, but we log that we are sending it.
+        Log.d("GeminiAgent", "Screenshot: [Bitmap attached]")
 
         try {
             val response = model.generateContent(
@@ -63,7 +66,7 @@ class GeminiAgent(apiKey: String) {
                 }
             )
             val result = response.text?.trim()
-            Log.d("GeminiAgent", "Raw Response: ${result ?: "EMPTY RESPONSE"}")
+            Log.d("GeminiAgent", "RESPONSE FROM LLM: ${result ?: "EMPTY RESPONSE"}")
             return@withContext result
         } catch (e: Exception) {
             Log.e("GeminiAgent", "API Error: ${e.message}", e)
