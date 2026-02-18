@@ -8,13 +8,25 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class GeminiAgent(apiKey: String) {
-    // Using the most current Gemini 3 models as specified
+    // Note: If you face persistent quota issues with 'computer-use-preview', consider switching to 'gemini-1.5-flash'.
     private val model = GenerativeModel(
         modelName = "gemini-2.5-computer-use-preview-10-2025",
         apiKey = apiKey
     )
 
     suspend fun getNextAction(prompt: String, screenshot: Bitmap, uiTree: String): String? = withContext(Dispatchers.IO) {
+        // --- 1. Resize/Downscale the screenshot to reduce data sent to LLM ---
+        val maxDimension = 1024
+        val resizedScreenshot = if (screenshot.width > maxDimension || screenshot.height > maxDimension) {
+            val scale = maxDimension.toFloat() / Math.max(screenshot.width, screenshot.height)
+            val newWidth = (screenshot.width * scale).toInt()
+            val newHeight = (screenshot.height * scale).toInt()
+            Log.d("GeminiAgent", "Resizing screenshot from ${screenshot.width}x${screenshot.height} to ${newWidth}x${newHeight}")
+            Bitmap.createScaledBitmap(screenshot, newWidth, newHeight, true)
+        } else {
+            screenshot
+        }
+
         val fullPrompt = """
             TASK: $prompt
             
@@ -55,13 +67,12 @@ class GeminiAgent(apiKey: String) {
 
         Log.d("GeminiAgent", "REQUEST SEND TO LLM:")
         Log.d("GeminiAgent", "Prompt: $fullPrompt")
-        // Note: Logging the screenshot is not feasible in text logs, but we log that we are sending it.
-        Log.d("GeminiAgent", "Screenshot: [Bitmap attached]")
+        Log.d("GeminiAgent", "Screenshot: [Resized Bitmap attached]")
 
         try {
             val response = model.generateContent(
                 content {
-                    image(screenshot)
+                    image(resizedScreenshot)
                     text(fullPrompt)
                 }
             )
@@ -71,6 +82,11 @@ class GeminiAgent(apiKey: String) {
         } catch (e: Exception) {
             Log.e("GeminiAgent", "API Error: ${e.message}", e)
             return@withContext null
+        } finally {
+            // Clean up the resized bitmap if it's a separate instance from the original
+            if (resizedScreenshot != screenshot) {
+                resizedScreenshot.recycle()
+            }
         }
     }
 }
