@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
+import android.view.Gravity
 import android.view.accessibility.AccessibilityManager
 import android.widget.Button
 import android.widget.EditText
@@ -40,12 +41,24 @@ class MainActivity : Activity() {
         }
 
         val taskEditText = EditText(this).apply {
+            hint = "Enter task here..."
             setText("go to contacts, and add a new contact John Smith with email johnsmith123@gmail.com")
-            isEnabled = false // Hardcoded for demo
+            isEnabled = true
+            minLines = 5
+            gravity = Gravity.TOP
+            setBackgroundResource(R.drawable.edit_text_border)
+            setPadding(20, 20, 20, 20)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+            ).apply {
+                setMargins(0, 0, 0, 40)
+            }
         }
 
         val runTaskButton = Button(this).apply {
-            text = "RUN DEMO TASK"
+            text = "RUN TASK"
             setOnClickListener {
                 val service = UIAgentAccessibilityService.instance
                 if (service != null) {
