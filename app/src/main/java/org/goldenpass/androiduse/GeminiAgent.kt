@@ -12,7 +12,7 @@ class GeminiAgent(apiKey: String) {
     // Note: 'gemini-2.0-flash' or 'gemini-1.5-flash' are recommended for vision-based UI tasks.
     // The 'computer-use' models require specific tool definitions which are more complex to implement.
     private val model = GenerativeModel(
-        modelName = "gemini-3-flash-preview",
+        modelName = "gemini-3.1-pro-preview", //gemini-3-flash-preview, gemini-3.1-pro-preview, etc
         apiKey = apiKey,
         generationConfig = generationConfig {
             responseMimeType = "application/json"
