@@ -3,14 +3,23 @@ package org.goldenpass.androiduse
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.graphics.Path
+import android.graphics.PixelFormat
 import android.graphics.Rect
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.Display
+import android.view.Gravity
+import android.view.View
+import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.widget.FrameLayout
 import androidx.annotation.RequiresApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -26,6 +35,7 @@ class UIAgentAccessibilityService : AccessibilityService() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var geminiAgent: GeminiAgent? = null
     private var isProcessing = false
+    private lateinit var windowManager: WindowManager
 
     companion object {
         var instance: UIAgentAccessibilityService? = null
@@ -44,6 +54,7 @@ class UIAgentAccessibilityService : AccessibilityService() {
         super.onServiceConnected()
         Log.d("UIAgentAccessibilityService", "Service Connected")
         instance = this
+        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         
         val apiKey = BuildConfig.GEMINI_API_KEY
         if (apiKey.isNotEmpty()) {
@@ -113,12 +124,16 @@ class UIAgentAccessibilityService : AccessibilityService() {
                 "click" -> {
                     val x = json.getDouble("x").toFloat()
                     val y = json.getDouble("y").toFloat()
+                    showVisualCue(x, y, Color.RED)
+                    delay(800)
                     performClickAt(x, y)
                     delay(2000)
                     processNextStep(taskDescription)
                 }
                 "type" -> {
                     val text = json.getString("text")
+                    showTypeCue()
+                    delay(800)
                     typeText(text)
                     delay(2000)
                     processNextStep(taskDescription)
@@ -128,6 +143,10 @@ class UIAgentAccessibilityService : AccessibilityService() {
                     val startY = json.getDouble("startY").toFloat()
                     val endX = json.getDouble("endX").toFloat()
                     val endY = json.getDouble("endY").toFloat()
+                    showVisualCue(startX, startY, Color.GREEN)
+                    delay(500)
+                    showVisualCue(endX, endY, Color.YELLOW)
+                    delay(300)
                     performSwipe(startX, startY, endX, endY)
                     delay(2000)
                     processNextStep(taskDescription)
@@ -144,6 +163,53 @@ class UIAgentAccessibilityService : AccessibilityService() {
         } catch (e: Exception) {
             Log.e("UIAgentAccessibilityService", "Error parsing agent action", e)
             isProcessing = false
+        }
+    }
+
+    private fun showVisualCue(x: Float, y: Float, color: Int) {
+        val size = 60
+        val view = View(this).apply {
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(color)
+                setStroke(4, Color.WHITE)
+            }
+            alpha = 0.7f
+        }
+
+        val params = WindowManager.LayoutParams(
+            size, size,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            this.x = (x - size / 2).toInt()
+            this.y = (y - size / 2).toInt()
+        }
+
+        try {
+            windowManager.addView(view, params)
+            Handler(Looper.getMainLooper()).postDelayed({
+                try {
+                    windowManager.removeView(view)
+                } catch (e: Exception) {
+                    Log.e("UIAgentAccessibilityService", "Error removing visual cue", e)
+                }
+            }, 1000)
+        } catch (e: Exception) {
+            Log.e("UIAgentAccessibilityService", "Error showing visual cue", e)
+        }
+    }
+
+    private fun showTypeCue() {
+        val rootNode = rootInActiveWindow ?: return
+        val focusedNode = findFocusedNode(rootNode)
+        if (focusedNode != null) {
+            val bounds = Rect()
+            focusedNode.getBoundsInScreen(bounds)
+            showVisualCue(bounds.centerX().toFloat(), bounds.centerY().toFloat(), Color.BLUE)
+            focusedNode.recycle()
         }
     }
 
