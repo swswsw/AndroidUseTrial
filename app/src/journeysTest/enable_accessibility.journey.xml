@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<journey name="Enable Accessibility Permission">
+    <description xml:space="preserve">Automates enabling the accessibility service for AndroidUseTrial.</description>
+
+    <actions xml:space="preserve">
+        <action>Tap the "Open Accessibility Settings" button. This should open the system Accessibility settings menu.</action>
+
+        <action>In the Accessibility settings, find and tap on "AndroidUseTrial". You might need to scroll down to find it under "Downloaded services" or "Installed apps".</action>
+
+        <action>Tap the toggle for "Use AndroidUseTrial" to enable it. If a system security warning or confirmation dialog appears, tap "Allow" or "OK".</action>
+
+        <action>Navigate back to the AndroidUseTrial app. Verify that the status text now says "Accessibility Service Enabled: true".</action>
+    </actions>
+</journey>
