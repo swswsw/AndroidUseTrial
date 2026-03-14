@@ -3,3 +3,6 @@
 
 # Gemini API Key from Google AI Studio (https://aistudio.google.com/)
 gemini.api.key=YOUR_GEMINI_API_KEY_HERE
+
+# OpenAI API Key from OpenAI Platform (https://platform.openai.com/)
+openai.api.key=YOUR_OPENAI_API_KEY_HERE

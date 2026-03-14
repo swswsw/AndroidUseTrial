@@ -7,10 +7,14 @@ import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
 import android.view.Gravity
+import android.view.View
 import android.view.accessibility.AccessibilityManager
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 
@@ -32,6 +36,23 @@ class MainActivity : Activity() {
             text = "Open Accessibility Settings"
             setOnClickListener {
                 startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            }
+        }
+
+        val modelLabel = TextView(this).apply {
+            text = "Select Model:"
+            setPadding(0, 40, 0, 10)
+        }
+
+        val modelSpinner = Spinner(this).apply {
+            val models = arrayOf("Gemini", "OpenAI")
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, models)
+            onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                    val selectedModel = models[position]
+                    UIAgentAccessibilityService.instance?.updateAgent(selectedModel)
+                }
+                override fun onNothingSelected(parent: AdapterView<*>?) {}
             }
         }
 
@@ -62,9 +83,12 @@ class MainActivity : Activity() {
             setOnClickListener {
                 val service = UIAgentAccessibilityService.instance
                 if (service != null) {
+                    val selectedModel = modelSpinner.selectedItem.toString()
+                    service.updateAgent(selectedModel)
+                    
                     val task = taskEditText.text.toString()
                     service.startAgentLoop(task)
-                    Toast.makeText(this@MainActivity, "Agent Started: Processing task...", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@MainActivity, "Agent Started ($selectedModel): Processing task...", Toast.LENGTH_LONG).show()
                     // Send app to background so agent can work on other apps
                     val startMain = Intent(Intent.ACTION_MAIN)
                     startMain.addCategory(Intent.CATEGORY_HOME)
@@ -79,6 +103,8 @@ class MainActivity : Activity() {
 
         layout.addView(statusTextView)
         layout.addView(settingsButton)
+        layout.addView(modelLabel)
+        layout.addView(modelSpinner)
         layout.addView(taskLabel)
         layout.addView(taskEditText)
         layout.addView(runTaskButton)

@@ -1,35 +1,32 @@
 package org.goldenpass.androiduse
 
 import android.graphics.Bitmap
+import android.util.Base64
 import android.util.Log
-import com.google.ai.client.generativeai.GenerativeModel
-import com.google.ai.client.generativeai.type.content
-import com.google.ai.client.generativeai.type.generationConfig
+import com.aallam.openai.api.chat.*
+import com.aallam.openai.api.model.ModelId
+import com.aallam.openai.client.OpenAI
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 
-class GeminiAgent(apiKey: String) : IAgent {
-    // Note: 'gemini-2.0-flash' or 'gemini-1.5-flash' are recommended for vision-based UI tasks.
-    // The 'computer-use' models require specific tool definitions which are more complex to implement.
-    private val model = GenerativeModel(
-        modelName = "gemini-3.1-pro-preview", //gemini-1.5-flash, gemini-2.0-flash, etc
-        apiKey = apiKey,
-        generationConfig = generationConfig {
-            responseMimeType = "application/json"
-        }
-    )
+class OpenAIAgent(apiKey: String) : IAgent {
+    private val openai = OpenAI(apiKey)
 
     override suspend fun getNextAction(prompt: String, screenshot: Bitmap, uiTree: String): String? = withContext(Dispatchers.IO) {
-        // --- 1. Resize/Downscale the screenshot to reduce data sent to LLM ---
         val maxDimension = 1024
         val resizedScreenshot = if (screenshot.width > maxDimension || screenshot.height > maxDimension) {
             val scale = maxDimension.toFloat() / Math.max(screenshot.width, screenshot.height)
             val newWidth = (screenshot.width * scale).toInt()
             val newHeight = (screenshot.height * scale).toInt()
-            Log.d("GeminiAgent", "Resizing screenshot from ${screenshot.width}x${screenshot.height} to ${newWidth}x${newHeight}")
             Bitmap.createScaledBitmap(screenshot, newWidth, newHeight, true)
         } else {
             screenshot
+        }
+
+        val base64Image = bitmapToBase64(resizedScreenshot)
+        if (resizedScreenshot != screenshot) {
+            resizedScreenshot.recycle()
         }
 
         val fullPrompt = """
@@ -70,28 +67,33 @@ class GeminiAgent(apiKey: String) : IAgent {
             - Respond ONLY with the JSON object.
         """.trimIndent()
 
-        Log.d("GeminiAgent", "REQUEST SEND TO LLM:")
-        Log.d("GeminiAgent", "Prompt: $fullPrompt")
-        Log.d("GeminiAgent", "Screenshot: [Resized Bitmap attached]")
-
         try {
-            val response = model.generateContent(
-                content {
-                    image(resizedScreenshot)
-                    text(fullPrompt)
+            val chatCompletionRequest = chatCompletionRequest {
+                model = ModelId("gpt-5.3")
+                messages {
+                    message {
+                        role = ChatRole.User
+                        content {
+                            text(fullPrompt)
+                            image("data:image/jpeg;base64,$base64Image")
+                        }
+                    }
                 }
-            )
-            val result = response.text?.trim()
-            Log.d("GeminiAgent", "RESPONSE FROM LLM: ${result ?: "EMPTY RESPONSE"}")
+            }
+            val completion = openai.chatCompletion(chatCompletionRequest)
+            val result = completion.choices.firstOrNull()?.message?.content?.trim()
+            Log.d("OpenAIAgent", "RESPONSE FROM LLM: ${result ?: "EMPTY RESPONSE"}")
             return@withContext result
         } catch (e: Exception) {
-            Log.e("GeminiAgent", "API Error: ${e.message}", e)
+            Log.e("OpenAIAgent", "API Error: ${e.message}", e)
             return@withContext null
-        } finally {
-            // Clean up the resized bitmap if it's a separate instance from the original
-            if (resizedScreenshot != screenshot) {
-                resizedScreenshot.recycle()
-            }
         }
+    }
+
+    private fun bitmapToBase64(bitmap: Bitmap): String {
+        val byteArrayOutputStream = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 80, byteArrayOutputStream)
+        val byteArray = byteArrayOutputStream.toByteArray()
+        return Base64.encodeToString(byteArray, Base64.NO_WRAP)
     }
 }

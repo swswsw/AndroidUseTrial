@@ -33,7 +33,7 @@ import java.util.concurrent.Executor
 class UIAgentAccessibilityService : AccessibilityService() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    private var geminiAgent: GeminiAgent? = null
+    private var agent: IAgent? = null
     private var isProcessing = false
     private lateinit var windowManager: WindowManager
 
@@ -56,11 +56,30 @@ class UIAgentAccessibilityService : AccessibilityService() {
         instance = this
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         
-        val apiKey = BuildConfig.GEMINI_API_KEY
-        if (apiKey.isNotEmpty()) {
-            geminiAgent = GeminiAgent(apiKey)
-        } else {
-            Log.e("UIAgentAccessibilityService", "Gemini API Key is missing! Add it to local.properties")
+        // Default to Gemini if key is present
+        updateAgent("Gemini")
+    }
+
+    fun updateAgent(modelType: String) {
+        when (modelType) {
+            "Gemini" -> {
+                val apiKey = BuildConfig.GEMINI_API_KEY
+                if (apiKey.isNotEmpty()) {
+                    agent = GeminiAgent(apiKey)
+                    Log.d("UIAgentAccessibilityService", "Agent updated to Gemini")
+                } else {
+                    Log.e("UIAgentAccessibilityService", "Gemini API Key is missing!")
+                }
+            }
+            "OpenAI" -> {
+                val apiKey = BuildConfig.OPENAI_API_KEY
+                if (apiKey.isNotEmpty()) {
+                    agent = OpenAIAgent(apiKey)
+                    Log.d("UIAgentAccessibilityService", "Agent updated to OpenAI")
+                } else {
+                    Log.e("UIAgentAccessibilityService", "OpenAI API Key is missing!")
+                }
+            }
         }
     }
 
@@ -96,11 +115,11 @@ class UIAgentAccessibilityService : AccessibilityService() {
             val uiTree = getClickableElementsJson()
             
             serviceScope.launch {
-                val agentResponse = geminiAgent?.getNextAction(taskDescription, softwareBitmap, uiTree)
+                val agentResponse = agent?.getNextAction(taskDescription, softwareBitmap, uiTree)
                 if (agentResponse != null) {
                     handleAgentAction(agentResponse, taskDescription)
                 } else {
-                    Log.e("UIAgentAccessibilityService", "No response from Gemini")
+                    Log.e("UIAgentAccessibilityService", "No response from Agent")
                     isProcessing = false
                 }
             }

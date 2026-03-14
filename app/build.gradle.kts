@@ -24,8 +24,9 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
-        // Pass the API key to the code as a BuildConfig field
+        // Pass the API keys to the code as BuildConfig field
         buildConfigField("String", "GEMINI_API_KEY", "\"${localProperties.getProperty("gemini.api.key") ?: ""}\"")
+        buildConfigField("String", "OPENAI_API_KEY", "\"${localProperties.getProperty("openai.api.key") ?: ""}\"")
     }
 
     buildTypes {
@@ -71,6 +72,12 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
     implementation(libs.google.generativeai)
+    implementation(libs.openai.client)
+    
+    // Explicitly adding Ktor dependencies to resolve NoClassDefFoundError
+    implementation(libs.ktor.client.core)
+    implementation(libs.ktor.client.okhttp)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
