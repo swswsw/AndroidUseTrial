@@ -29,16 +29,10 @@ class OpenAIAgent(apiKey: String) : IAgent {
             resizedScreenshot.recycle()
         }
 
-        val fullPrompt = """
-            TASK: $prompt
-            
-            Current UI Tree (Clickable elements):
-            $uiTree
-            
-            INSTRUCTIONS:
-            1. You are an Android UI Agent.
-            2. Analyze the provided screenshot and the UI Tree list.
-            3. Decide on the NEXT SINGLE ACTION to move closer to completing the TASK.
+        val systemInstructions = """
+            You are an Android UI Agent.
+            Analyze the provided screenshot and the UI Tree list.
+            Decide on the NEXT SINGLE ACTION to move closer to completing the TASK.
             
             REQUIRED RESPONSE FORMAT (JSON ONLY):
             {
@@ -67,14 +61,25 @@ class OpenAIAgent(apiKey: String) : IAgent {
             - Respond ONLY with the JSON object.
         """.trimIndent()
 
+        val userPrompt = """
+            TASK: $prompt
+            
+            Current UI Tree (Clickable elements):
+            $uiTree
+        """.trimIndent()
+
         try {
             val chatCompletionRequest = chatCompletionRequest {
-                model = ModelId("gpt-5.3")
+                model = ModelId("gpt-5.4")
                 messages {
+                    message {
+                        role = ChatRole.System
+                        content = systemInstructions
+                    }
                     message {
                         role = ChatRole.User
                         content {
-                            text(fullPrompt)
+                            text(userPrompt)
                             image("data:image/jpeg;base64,$base64Image")
                         }
                     }
