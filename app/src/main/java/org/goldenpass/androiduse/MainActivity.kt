@@ -19,6 +19,8 @@ import android.widget.TextView
 import android.widget.Toast
 
 class MainActivity : Activity() {
+    private lateinit var statusTextView: TextView
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
@@ -27,7 +29,7 @@ class MainActivity : Activity() {
             setPadding(50, 50, 50, 50)
         }
 
-        val statusTextView = TextView(this).apply {
+        statusTextView = TextView(this).apply {
             text = "Accessibility Service Enabled: ${isAccessibilityServiceEnabled(this@MainActivity)}"
             textSize = 18f
         }
@@ -110,6 +112,13 @@ class MainActivity : Activity() {
         layout.addView(runTaskButton)
 
         setContentView(layout)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::statusTextView.isInitialized) {
+            statusTextView.text = "Accessibility Service Enabled: ${isAccessibilityServiceEnabled(this)}"
+        }
     }
 
     private fun isAccessibilityServiceEnabled(context: Context): Boolean {
