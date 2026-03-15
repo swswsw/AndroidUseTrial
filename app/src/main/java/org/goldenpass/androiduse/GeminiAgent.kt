@@ -12,10 +12,63 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 class GeminiAgent(apiKey: String) : IAgent {
-    // Note: 'gemini-2.0-flash' or 'gemini-1.5-flash' are recommended for vision-based UI tasks.
+    
+    private val systemInstructions = """
+        You are an expert Android UI Automation Agent.
+        Your goal is to complete a user-specified TASK by analyzing a screenshot and a UI Tree.
+        
+        COORDINATE SYSTEM:
+        - All coordinates (x, y, startX, startY, endX, endY) MUST be in normalized 0-1000 format.
+        - (0, 0) is the top-left corner.
+        - (1000, 1000) is the bottom-right corner.
+        
+        UI TREE DATA:
+        - The UI Tree contains clickable elements and their normalized center coordinates. Use this to help locate precise targets.
+        
+        REQUIRED RESPONSE FORMAT (JSON ONLY):
+        You must respond with a SINGLE JSON object in one of these formats:
+        
+        1. CLICK ACTION:
+        {
+          "thought": "Reasoning for the action.",
+          "action": "click",
+          "x": 500,
+          "y": 500
+        }
+        
+        2. TYPE ACTION (Use this after clicking/focusing an input field):
+        {
+          "thought": "Reasoning for the action.",
+          "action": "type",
+          "text": "text to type"
+        }
+        
+        3. SWIPE ACTION:
+        {
+          "thought": "Reasoning for the action.",
+          "action": "swipe",
+          "startX": 500,
+          "startY": 800,
+          "endX": 500,
+          "endY": 200
+        }
+        
+        4. DONE:
+        {
+          "thought": "Task is complete.",
+          "action": "done"
+        }
+        
+        IMPORTANT RULES:
+        - Respond ONLY with the JSON object. No other text.
+        - Be precise with coordinates.
+        - If the task is finished, return the "done" action.
+    """.trimIndent()
+
     private val model = GenerativeModel(
         modelName = "gemini-3.1-pro-preview",
         apiKey = apiKey,
+        systemInstruction = content { text(systemInstructions) },
         generationConfig = generationConfig {
             responseMimeType = "application/json"
         }
@@ -41,75 +94,21 @@ class GeminiAgent(apiKey: String) : IAgent {
             screenshot
         }
 
-        val systemInstructions = """
-            You are an expert Android UI Automation Agent.
-            Your goal is to complete a user-specified TASK by analyzing a screenshot and a UI Tree.
-            
-            COORDINATE SYSTEM:
-            - All coordinates (x, y, startX, startY, endX, endY) MUST be in normalized 0-1000 format.
-            - (0, 0) is the top-left corner.
-            - (1000, 1000) is the bottom-right corner.
-            
-            UI TREE DATA:
-            - The UI Tree contains clickable elements and their normalized center coordinates. Use this to help locate precise targets.
-            
-            REQUIRED RESPONSE FORMAT (JSON ONLY):
-            You must respond with a SINGLE JSON object in one of these formats:
-            
-            1. CLICK ACTION:
-            {
-              "thought": "Reasoning for the action.",
-              "action": "click",
-              "x": 500,
-              "y": 500
-            }
-            
-            2. TYPE ACTION (Use this after clicking/focusing an input field):
-            {
-              "thought": "Reasoning for the action.",
-              "action": "type",
-              "text": "text to type"
-            }
-            
-            3. SWIPE ACTION:
-            {
-              "thought": "Reasoning for the action.",
-              "action": "swipe",
-              "startX": 500,
-              "startY": 800,
-              "endX": 500,
-              "endY": 200
-            }
-            
-            4. DONE:
-            {
-              "thought": "Task is complete.",
-              "action": "done"
-            }
-            
-            IMPORTANT RULES:
-            - Respond ONLY with the JSON object. No other text.
-            - Be precise with coordinates.
-            - If the task is finished, return the "done" action.
-        """.trimIndent()
-
-        val fullPrompt = """
+        val userPrompt = """
             TASK: $prompt
             
             CURRENT UI TREE (Normalized Centers):
             $normalizedUiTree
-            
-            $systemInstructions
         """.trimIndent()
 
         Log.d("GeminiAgent", "REQUEST SEND TO LLM:")
-        Log.d("GeminiAgent", "Prompt: $fullPrompt")
+        Log.d("GeminiAgent", "Prompt: $userPrompt")
 
         try {
             val response = model.generateContent(
                 content {
                     image(resizedScreenshot)
-                    text(fullPrompt)
+                    text(userPrompt)
                 }
             )
             val result = response.text?.trim()
