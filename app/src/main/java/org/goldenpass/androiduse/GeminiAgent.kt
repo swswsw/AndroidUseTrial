@@ -11,7 +11,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
-class GeminiAgent(apiKey: String) : IAgent {
+class GeminiAgent(apiKey: String, modelName: String = "gemini-3.1-pro-preview") : IAgent {
     
     private val systemInstructions = """
         You are an expert Android UI Automation Agent.
@@ -66,7 +66,7 @@ class GeminiAgent(apiKey: String) : IAgent {
     """.trimIndent()
 
     private val model = GenerativeModel(
-        modelName = "gemini-3.1-pro-preview",
+        modelName = modelName,
         apiKey = apiKey,
         systemInstruction = content { text(systemInstructions) },
         generationConfig = generationConfig {
@@ -101,7 +101,7 @@ class GeminiAgent(apiKey: String) : IAgent {
             $normalizedUiTree
         """.trimIndent()
 
-        Log.d("GeminiAgent", "REQUEST SEND TO LLM:")
+        Log.d("GeminiAgent", "REQUEST SEND TO LLM (Model: ${model.modelName}):")
         Log.d("GeminiAgent", "Prompt: $userPrompt")
 
         try {

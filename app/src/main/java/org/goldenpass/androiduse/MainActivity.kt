@@ -46,8 +46,26 @@ class MainActivity : Activity() {
             setPadding(0, 40, 0, 10)
         }
 
+        val models = arrayOf(
+            "gemini-3.1-pro-preview",
+            "gemini-3.1-flash-preview",
+            "gemini-3.1-flash-lite-preview",
+            "gemini-3-pro-preview",
+            "gemini-3-flash-preview",
+            "gemini-3-deep-think",
+            "gpt-5.4",
+            "gpt-5.4-mini",
+            "gpt-5.4-nano",
+            "gpt-5.4-thinking",
+            "gpt-5.4-pro",
+            "gpt-5.3-codex",
+            "gpt-5.3-instant",
+            "gpt-5.3-codex-spark",
+            "gpt-5.2",
+            "gpt-5.2-instant"
+        )
+
         val modelSpinner = Spinner(this).apply {
-            val models = arrayOf("Gemini", "OpenAI")
             adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, models)
             onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
                 override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {

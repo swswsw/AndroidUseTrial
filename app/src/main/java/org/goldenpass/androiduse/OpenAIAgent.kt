@@ -13,7 +13,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 
-class OpenAIAgent(apiKey: String) : IAgent {
+class OpenAIAgent(apiKey: String, private val modelName: String = "gpt-5.4") : IAgent {
     private val openai = OpenAI(apiKey)
 
     override suspend fun getNextAction(prompt: String, screenshot: Bitmap, uiTree: String): String? = withContext(Dispatchers.IO) {
@@ -100,7 +100,7 @@ class OpenAIAgent(apiKey: String) : IAgent {
 
         try {
             val chatCompletionRequest = chatCompletionRequest {
-                model = ModelId("gpt-5.4")
+                model = ModelId(modelName)
                 messages {
                     message {
                         role = ChatRole.System
@@ -117,6 +117,7 @@ class OpenAIAgent(apiKey: String) : IAgent {
             }
             val completion = openai.chatCompletion(chatCompletionRequest)
             val rawResult = completion.choices.firstOrNull()?.message?.content?.trim()
+            Log.d("OpenAIAgent", "REQUEST SEND TO LLM (Model: $modelName)")
             Log.d("OpenAIAgent", "RAW RESPONSE: $rawResult")
 
             // 2. Post-process the result: Convert 0-1000 back to absolute pixels

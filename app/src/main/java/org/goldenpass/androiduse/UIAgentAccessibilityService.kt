@@ -56,30 +56,29 @@ class UIAgentAccessibilityService : AccessibilityService() {
         instance = this
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         
-        // Default to Gemini if key is present
-        updateAgent("Gemini")
+        // Default model
+        updateAgent("gemini-3.1-pro-preview")
     }
 
-    fun updateAgent(modelType: String) {
-        when (modelType) {
-            "Gemini" -> {
-                val apiKey = BuildConfig.GEMINI_API_KEY
-                if (apiKey.isNotEmpty()) {
-                    agent = GeminiAgent(apiKey)
-                    Log.d("UIAgentAccessibilityService", "Agent updated to Gemini")
-                } else {
-                    Log.e("UIAgentAccessibilityService", "Gemini API Key is missing!")
-                }
+    fun updateAgent(modelName: String) {
+        if (modelName.startsWith("gemini")) {
+            val apiKey = BuildConfig.GEMINI_API_KEY
+            if (apiKey.isNotEmpty()) {
+                agent = GeminiAgent(apiKey, modelName)
+                Log.d("UIAgentAccessibilityService", "Agent updated to Gemini ($modelName)")
+            } else {
+                Log.e("UIAgentAccessibilityService", "Gemini API Key is missing!")
             }
-            "OpenAI" -> {
-                val apiKey = BuildConfig.OPENAI_API_KEY
-                if (apiKey.isNotEmpty()) {
-                    agent = OpenAIAgent(apiKey)
-                    Log.d("UIAgentAccessibilityService", "Agent updated to OpenAI")
-                } else {
-                    Log.e("UIAgentAccessibilityService", "OpenAI API Key is missing!")
-                }
+        } else if (modelName.startsWith("gpt")) {
+            val apiKey = BuildConfig.OPENAI_API_KEY
+            if (apiKey.isNotEmpty()) {
+                agent = OpenAIAgent(apiKey, modelName)
+                Log.d("UIAgentAccessibilityService", "Agent updated to OpenAI ($modelName)")
+            } else {
+                Log.e("UIAgentAccessibilityService", "OpenAI API Key is missing!")
             }
+        } else {
+            Log.e("UIAgentAccessibilityService", "Unknown model type: $modelName")
         }
     }
 
