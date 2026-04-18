@@ -17,6 +17,7 @@ import android.widget.LinearLayout
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
+import android.graphics.Color
 
 class MainActivity : Activity() {
     private lateinit var statusTextView: TextView
