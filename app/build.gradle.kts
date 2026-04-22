@@ -77,6 +77,7 @@ dependencies {
     // Explicitly adding Ktor dependencies to resolve NoClassDefFoundError
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.okhttp)
+    implementation(libs.androidx.security.crypto)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

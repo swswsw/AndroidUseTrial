@@ -11,7 +11,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
-class GeminiAgent(apiKey: String, modelName: String = "gemini-3.1-pro-preview") : IAgent {
+class GeminiAgent(private val apiKey: String, modelName: String = "gemini-3.1-pro-preview") : IAgent {
     
     private val systemInstructions = """
         You are an expert Android UI Automation Agent.
@@ -79,6 +79,8 @@ class GeminiAgent(apiKey: String, modelName: String = "gemini-3.1-pro-preview") 
         val screenWidth = displayMetrics.widthPixels
         val screenHeight = displayMetrics.heightPixels
 
+        Log.i("GeminiAgent", "Using Gemini API Key: $apiKey")
+
         // 1. Process UI Tree into normalized centers (0-1000)
         val normalizedUiTree = normalizeUiTree(uiTree, screenWidth, screenHeight)
 
@@ -117,7 +119,7 @@ class GeminiAgent(apiKey: String, modelName: String = "gemini-3.1-pro-preview") 
             // 3. Post-process the result: Convert 0-1000 back to absolute pixels
             return@withContext denormalizeResponse(result, screenWidth, screenHeight)
         } catch (e: Exception) {
-            Log.e("GeminiAgent", "API Error: ${e.message}", e)
+            Log.e("GeminiAgent", "API Error detail: ", e)
             return@withContext null
         } finally {
             if (resizedScreenshot != screenshot) {

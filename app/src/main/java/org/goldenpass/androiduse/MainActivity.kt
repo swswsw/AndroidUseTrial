@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
+import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.accessibility.AccessibilityManager
@@ -17,6 +18,8 @@ import android.widget.LinearLayout
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.graphics.Color
 
 class MainActivity : Activity() {
@@ -39,6 +42,13 @@ class MainActivity : Activity() {
             text = "Open Accessibility Settings"
             setOnClickListener {
                 startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            }
+        }
+
+        val apiSettingsButton = Button(this).apply {
+            text = "API Key Settings"
+            setOnClickListener {
+                startActivity(Intent(this@MainActivity, SettingsActivity::class.java))
             }
         }
 
@@ -102,12 +112,28 @@ class MainActivity : Activity() {
         val runTaskButton = Button(this).apply {
             text = "RUN TASK"
             setOnClickListener {
+                val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+                val network = connectivityManager.activeNetwork
+                val capabilities = connectivityManager.getNetworkCapabilities(network)
+                val isOnline = capabilities != null && (
+                        capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                        capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                        capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))
+                
+                if (!isOnline) {
+                    Toast.makeText(this@MainActivity, "ERROR: No Internet Connection detected", Toast.LENGTH_LONG).show()
+                    Log.e("MainActivity", "Task failed to start: No internet connection.")
+                    return@setOnClickListener
+                }
+
                 val service = UIAgentAccessibilityService.instance
                 if (service != null) {
                     val selectedModel = modelSpinner.selectedItem.toString()
+                    Log.i("MainActivity", "Starting task with model: $selectedModel")
                     service.updateAgent(selectedModel)
                     
                     val task = taskEditText.text.toString()
+                    Log.i("MainActivity", "Task Description: $task")
                     service.startAgentLoop(task)
                     Toast.makeText(this@MainActivity, "Agent Started ($selectedModel): Processing task...", Toast.LENGTH_LONG).show()
                     // Send app to background so agent can work on other apps
@@ -124,6 +150,7 @@ class MainActivity : Activity() {
 
         layout.addView(statusTextView)
         layout.addView(settingsButton)
+        layout.addView(apiSettingsButton)
         layout.addView(modelLabel)
         layout.addView(modelSpinner)
         layout.addView(taskLabel)

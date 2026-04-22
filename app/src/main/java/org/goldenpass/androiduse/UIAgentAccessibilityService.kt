@@ -61,17 +61,18 @@ class UIAgentAccessibilityService : AccessibilityService() {
     }
 
     fun updateAgent(modelName: String) {
+        val securityManager = SecurityManager(this)
         if (modelName.startsWith("gemini")) {
-            val apiKey = BuildConfig.GEMINI_API_KEY
-            if (apiKey.isNotEmpty()) {
+            val apiKey = securityManager.getGeminiApiKey()
+            if (apiKey != null) {
                 agent = GeminiAgent(apiKey, modelName)
                 Log.d("UIAgentAccessibilityService", "Agent updated to Gemini ($modelName)")
             } else {
                 Log.e("UIAgentAccessibilityService", "Gemini API Key is missing!")
             }
         } else if (modelName.startsWith("gpt")) {
-            val apiKey = BuildConfig.OPENAI_API_KEY
-            if (apiKey.isNotEmpty()) {
+            val apiKey = securityManager.getOpenAIApiKey()
+            if (apiKey != null) {
                 agent = OpenAIAgent(apiKey, modelName)
                 Log.d("UIAgentAccessibilityService", "Agent updated to OpenAI ($modelName)")
             } else {
