@@ -20,6 +20,7 @@ import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.FrameLayout
+import android.widget.Toast
 import androidx.annotation.RequiresApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -36,6 +37,12 @@ class UIAgentAccessibilityService : AccessibilityService() {
     private var agent: IAgent? = null
     private var isProcessing = false
     private lateinit var windowManager: WindowManager
+    
+    private var currentStepCount = 0
+    private var lastActionJson: String? = null
+    private var repeatCount = 0
+    private val MAX_STEPS = 20
+    private val MAX_REPEATS = 3
 
     companion object {
         var instance: UIAgentAccessibilityService? = null
@@ -94,6 +101,9 @@ class UIAgentAccessibilityService : AccessibilityService() {
     fun startAgentLoop(taskDescription: String) {
         if (isProcessing) return
         isProcessing = true
+        currentStepCount = 0
+        lastActionJson = null
+        repeatCount = 0
         
         serviceScope.launch {
             processNextStep(taskDescription)
@@ -102,8 +112,14 @@ class UIAgentAccessibilityService : AccessibilityService() {
 
     private suspend fun processNextStep(taskDescription: String) {
         if (!isProcessing) return
+        
+        currentStepCount++
+        if (currentStepCount > MAX_STEPS) {
+            stopWithNotification("Task timed out: Maximum steps ($MAX_STEPS) reached.")
+            return
+        }
 
-        Log.d("UIAgentAccessibilityService", "Capturing screen for next step...")
+        Log.d("UIAgentAccessibilityService", "Capturing screen for step $currentStepCount...")
         
         captureScreenshot(mainExecutor) { bitmap ->
             if (bitmap == null) {
@@ -143,6 +159,19 @@ class UIAgentAccessibilityService : AccessibilityService() {
             val json = JSONObject(jsonStr)
             val action = json.optString("action")
             val thought = json.optString("thought", "No reasoning provided")
+            
+            // Loop detection based on action content, ignoring the 'thought' field
+            val actionContent = JSONObject(json.toString()).apply { remove("thought") }.toString()
+            if (actionContent == lastActionJson) {
+                repeatCount++
+                if (repeatCount >= MAX_REPEATS) {
+                    stopWithNotification("Agent is stuck in a loop. Same action repeated $MAX_REPEATS times.")
+                    return
+                }
+            } else {
+                repeatCount = 0
+            }
+            lastActionJson = actionContent
 
             Log.i("UIAgentAccessibilityService", "Agent Thought: $thought")
             Log.d("UIAgentAccessibilityService", "Agent decided: $action")
@@ -288,6 +317,14 @@ class UIAgentAccessibilityService : AccessibilityService() {
         val gestureBuilder = GestureDescription.Builder()
         gestureBuilder.addStroke(GestureDescription.StrokeDescription(clickPath, 0, 100))
         dispatchGesture(gestureBuilder.build(), null, null)
+    }
+
+    private fun stopWithNotification(message: String) {
+        Log.w("UIAgentAccessibilityService", message)
+        isProcessing = false
+        Handler(Looper.getMainLooper()).post {
+            Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+        }
     }
 
     fun performSwipe(startX: Float, startY: Float, endX: Float, endY: Float, duration: Long = 500L) {
