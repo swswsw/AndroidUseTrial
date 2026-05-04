@@ -78,6 +78,14 @@ class UIAgentAccessibilityService : AccessibilityService() {
             } else {
                 Log.e("UIAgentAccessibilityService", "OpenAI API Key is missing!")
             }
+        } else if (modelName.startsWith("claude")) {
+            val apiKey = securityManager.getAnthropicApiKey()
+            if (apiKey != null) {
+                agent = AnthropicAgent(apiKey, modelName)
+                Log.d("UIAgentAccessibilityService", "Agent updated to Anthropic ($modelName)")
+            } else {
+                Log.e("UIAgentAccessibilityService", "Anthropic API Key is missing!")
+            }
         } else {
             Log.e("UIAgentAccessibilityService", "Unknown model type: $modelName")
         }

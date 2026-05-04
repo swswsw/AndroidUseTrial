@@ -44,6 +44,15 @@ class SettingsActivity : Activity() {
             setText(securityManager.getOpenAIApiKey() ?: "")
         }
 
+        val anthropicLabel = TextView(this).apply {
+            text = "Anthropic API Key:"
+            setPadding(0, 30, 0, 0)
+        }
+        val anthropicKeyInput = EditText(this).apply {
+            hint = "Enter Anthropic API Key"
+            setText(securityManager.getAnthropicApiKey() ?: "")
+        }
+
         val saveButton = Button(this).apply {
             text = "Save Keys"
             layoutParams = LinearLayout.LayoutParams(
@@ -55,9 +64,11 @@ class SettingsActivity : Activity() {
             setOnClickListener {
                 val geminiKey = geminiKeyInput.text.toString().trim()
                 val openAIKey = openAIKeyInput.text.toString().trim()
+                val anthropicKey = anthropicKeyInput.text.toString().trim()
 
                 securityManager.setGeminiApiKey(geminiKey)
                 securityManager.setOpenAIApiKey(openAIKey)
+                securityManager.setAnthropicApiKey(anthropicKey)
 
                 Toast.makeText(this@SettingsActivity, "Keys saved securely", Toast.LENGTH_SHORT).show()
                 finish()
@@ -69,6 +80,8 @@ class SettingsActivity : Activity() {
         layout.addView(geminiKeyInput)
         layout.addView(openAILabel)
         layout.addView(openAIKeyInput)
+        layout.addView(anthropicLabel)
+        layout.addView(anthropicKeyInput)
         layout.addView(saveButton)
 
         setContentView(layout)

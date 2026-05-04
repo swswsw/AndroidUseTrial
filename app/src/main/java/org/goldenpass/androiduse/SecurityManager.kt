@@ -62,4 +62,26 @@ class SecurityManager(context: Context) {
         Log.i(tag, "Saving OpenAI API Key to EncryptedSharedPreferences")
         sharedPreferences.edit().putString("openai_api_key", key).apply()
     }
+
+    fun getAnthropicApiKey(): String? {
+        val prefKey = sharedPreferences.getString("anthropic_api_key", null)
+        return if (!prefKey.isNullOrEmpty()) {
+            Log.i(tag, "Retrieved Anthropic API Key from EncryptedSharedPreferences")
+            prefKey
+        } else {
+            val buildKey = BuildConfig.ANTHROPIC_API_KEY
+            if (buildKey.isNotEmpty()) {
+                Log.i(tag, "Retrieved Anthropic API Key from BuildConfig fallback")
+                buildKey
+            } else {
+                Log.w(tag, "Anthropic API Key is missing everywhere!")
+                null
+            }
+        }
+    }
+
+    fun setAnthropicApiKey(key: String) {
+        Log.i(tag, "Saving Anthropic API Key to EncryptedSharedPreferences")
+        sharedPreferences.edit().putString("anthropic_api_key", key).apply()
+    }
 }

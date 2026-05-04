@@ -27,6 +27,7 @@ android {
         // Pass the API keys to the code as BuildConfig field
         buildConfigField("String", "GEMINI_API_KEY", "\"${localProperties.getProperty("gemini.api.key") ?: ""}\"")
         buildConfigField("String", "OPENAI_API_KEY", "\"${localProperties.getProperty("openai.api.key") ?: ""}\"")
+        buildConfigField("String", "ANTHROPIC_API_KEY", "\"${localProperties.getProperty("anthropic.api.key") ?: ""}\"")
     }
 
     buildTypes {
@@ -44,6 +45,12 @@ android {
     }
     buildFeatures {
         buildConfig = true
+    }
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "/META-INF/DEPENDENCIES"
+        }
     }
     testOptions {
         suites {
@@ -73,6 +80,7 @@ dependencies {
     implementation(libs.material)
     implementation(libs.google.generativeai)
     implementation(libs.openai.client)
+    implementation(libs.anthropic.client)
     
     // Explicitly adding Ktor dependencies to resolve NoClassDefFoundError
     implementation(libs.ktor.client.core)

@@ -11,6 +11,7 @@ junitPlatformLauncher = "1.13.4"
 junitPlatformEngine = "1.13.4"
 journeysJunitEngine = "0.2.1"
 openai = "3.8.2"
+anthropic = "2.27.0"
 ktor = "2.3.12"
 securityCrypto = "1.1.0"
 
@@ -26,6 +27,7 @@ junit-platform-launcher = { group = "org.junit.platform", name = "junit-platform
 junit-platform-engine = { group = "org.junit.platform", name = "junit-platform-engine", version.ref = "junitPlatformEngine" }
 journeys-junit-engine = { group = "com.android.tools.journeys", name = "journeys-junit-engine", version.ref = "journeysJunitEngine" }
 openai-client = { group = "com.aallam.openai", name = "openai-client", version.ref = "openai" }
+anthropic-client = { group = "com.anthropic", name = "anthropic-java", version.ref = "anthropic" }
 ktor-client-core = { group = "io.ktor", name = "ktor-client-core", version.ref = "ktor" }
 ktor-client-okhttp = { group = "io.ktor", name = "ktor-client-okhttp", version.ref = "ktor" }
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
