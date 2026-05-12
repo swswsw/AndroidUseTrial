@@ -42,7 +42,7 @@ class UIAgentAccessibilityService : AccessibilityService() {
     private var lastActionJson: String? = null
     private var repeatCount = 0
     private val MAX_STEPS = 20
-    private val MAX_REPEATS = 3
+    private val MAX_REPEATS = 7
 
     companion object {
         var instance: UIAgentAccessibilityService? = null
