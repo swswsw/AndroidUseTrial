@@ -20,7 +20,12 @@ import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.FrameLayout
+import android.view.MotionEvent
+import android.widget.TextView
+import android.widget.Button
+import android.widget.LinearLayout
 import android.widget.Toast
+import android.util.TypedValue
 import androidx.annotation.RequiresApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -38,6 +43,12 @@ class UIAgentAccessibilityService : AccessibilityService() {
     private var isProcessing = false
     private lateinit var windowManager: WindowManager
     
+    private var overlayView: View? = null
+    private lateinit var statusTextView: TextView
+    private lateinit var stepTextView: TextView
+    private lateinit var modelTextView: TextView
+    private var currentModelName: String = ""
+
     private var currentStepCount = 0
     private var lastActionJson: String? = null
     private var repeatCount = 0
@@ -68,6 +79,8 @@ class UIAgentAccessibilityService : AccessibilityService() {
     }
 
     fun updateAgent(modelName: String) {
+        currentModelName = modelName
+        updateOverlay(model = modelName)
         val securityManager = SecurityManager(this)
         if (modelName.startsWith("gemini")) {
             val apiKey = securityManager.getGeminiApiKey()
@@ -105,6 +118,9 @@ class UIAgentAccessibilityService : AccessibilityService() {
         lastActionJson = null
         repeatCount = 0
         
+        showOverlay()
+        updateOverlay("Starting...", 0, currentModelName)
+        
         serviceScope.launch {
             processNextStep(taskDescription)
         }
@@ -119,6 +135,7 @@ class UIAgentAccessibilityService : AccessibilityService() {
             return
         }
 
+        updateOverlay("Capturing screen...", currentStepCount)
         Log.d("UIAgentAccessibilityService", "Capturing screen for step $currentStepCount...")
         
         captureScreenshot(mainExecutor) { bitmap ->
@@ -139,6 +156,7 @@ class UIAgentAccessibilityService : AccessibilityService() {
             val uiTree = getClickableElementsJson()
             
             serviceScope.launch {
+                updateOverlay("Thinking...", currentStepCount)
                 val agentResponse = agent?.getNextAction(taskDescription, softwareBitmap, uiTree)
                 if (agentResponse != null) {
                     handleAgentAction(agentResponse, taskDescription)
@@ -180,6 +198,7 @@ class UIAgentAccessibilityService : AccessibilityService() {
                 "click" -> {
                     val x = json.getDouble("x").toFloat()
                     val y = json.getDouble("y").toFloat()
+                    updateOverlay("Clicking at ($x, $y)", currentStepCount)
                     showVisualCue(x, y, Color.RED)
                     delay(800)
                     performClickAt(x, y)
@@ -188,6 +207,7 @@ class UIAgentAccessibilityService : AccessibilityService() {
                 }
                 "type" -> {
                     val text = json.getString("text")
+                    updateOverlay("Typing: $text", currentStepCount)
                     showTypeCue()
                     delay(800)
                     typeText(text)
@@ -199,6 +219,7 @@ class UIAgentAccessibilityService : AccessibilityService() {
                     val startY = json.getDouble("startY").toFloat()
                     val endX = json.getDouble("endX").toFloat()
                     val endY = json.getDouble("endY").toFloat()
+                    updateOverlay("Swiping...", currentStepCount)
                     showVisualCue(startX, startY, Color.GREEN)
                     delay(500)
                     showVisualCue(endX, endY, Color.YELLOW)
@@ -209,11 +230,11 @@ class UIAgentAccessibilityService : AccessibilityService() {
                 }
                 "done" -> {
                     Log.i("UIAgentAccessibilityService", "Task completed!")
-                    isProcessing = false
+                    stopWithNotification("Task Completed Successfully!")
                 }
                 else -> {
                     Log.w("UIAgentAccessibilityService", "Unknown action: $action")
-                    isProcessing = false
+                    stopWithNotification("Unknown action received: $action")
                 }
             }
         } catch (e: Exception) {
@@ -322,8 +343,139 @@ class UIAgentAccessibilityService : AccessibilityService() {
     private fun stopWithNotification(message: String) {
         Log.w("UIAgentAccessibilityService", message)
         isProcessing = false
+        hideOverlay()
         Handler(Looper.getMainLooper()).post {
             Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun showOverlay() {
+        if (overlayView != null) return
+
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#CC222222"))
+                cornerRadius = 32f
+            }
+            setPadding(24, 16, 24, 16)
+        }
+
+        val topRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+
+        val dragHandle = TextView(this).apply {
+            text = "⠿"
+            setTextColor(Color.WHITE)
+            textSize = 24f
+            setPadding(0, 0, 20, 0)
+        }
+
+        modelTextView = TextView(this).apply {
+            text = "🤖 $currentModelName"
+            setTextColor(Color.WHITE)
+            textSize = 14f
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+
+        stepTextView = TextView(this).apply {
+            text = "Step 0/$MAX_STEPS"
+            setTextColor(Color.LTGRAY)
+            textSize = 14f
+            setPadding(20, 0, 20, 0)
+        }
+
+        val stopButton = Button(this).apply {
+            text = "STOP"
+            setBackgroundColor(Color.RED)
+            setTextColor(Color.WHITE)
+            textSize = 12f
+            setOnClickListener {
+                stopWithNotification("Agent stopped by user.")
+            }
+        }
+
+        topRow.addView(dragHandle)
+        topRow.addView(modelTextView)
+        topRow.addView(stepTextView)
+        topRow.addView(stopButton)
+
+        statusTextView = TextView(this).apply {
+            text = "Initializing..."
+            setTextColor(Color.WHITE)
+            textSize = 12f
+            setPadding(0, 8, 0, 0)
+        }
+
+        root.addView(topRow)
+        root.addView(statusTextView)
+
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            x = 0
+            y = 100
+            width = (resources.displayMetrics.widthPixels * 0.95).toInt()
+        }
+
+        dragHandle.setOnTouchListener(object : View.OnTouchListener {
+            private var initialX: Int = 0
+            private var initialY: Int = 0
+            private var initialTouchX: Float = 0f
+            private var initialTouchY: Float = 0f
+
+            override fun onTouch(v: View, event: MotionEvent): Boolean {
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        initialX = params.x
+                        initialY = params.y
+                        initialTouchX = event.rawX
+                        initialTouchY = event.rawY
+                        return true
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        params.x = initialX + (event.rawX - initialTouchX).toInt()
+                        params.y = initialY + (event.rawY - initialTouchY).toInt()
+                        windowManager.updateViewLayout(root, params)
+                        return true
+                    }
+                }
+                return false
+            }
+        })
+
+        overlayView = root
+        try {
+            windowManager.addView(overlayView, params)
+        } catch (e: Exception) {
+            Log.e("UIAgentAccessibilityService", "Error adding overlay", e)
+        }
+    }
+
+    private fun hideOverlay() {
+        overlayView?.let {
+            try {
+                windowManager.removeView(it)
+            } catch (e: Exception) {
+                Log.e("UIAgentAccessibilityService", "Error removing overlay", e)
+            }
+            overlayView = null
+        }
+    }
+
+    private fun updateOverlay(status: String? = null, step: Int? = null, model: String? = null) {
+        Handler(Looper.getMainLooper()).post {
+            if (overlayView == null) return@post
+            status?.let { statusTextView.text = it }
+            step?.let { stepTextView.text = "Step $it/$MAX_STEPS" }
+            model?.let { modelTextView.text = "🤖 $it" }
         }
     }
 

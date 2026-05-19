@@ -171,6 +171,16 @@ class MainActivity : Activity() {
         if (::statusTextView.isInitialized) {
             statusTextView.text = "Accessibility Service Enabled: ${isAccessibilityServiceEnabled(this)}"
         }
+        
+        // Debug: Auto-start if intent has AUTO_START
+        if (intent.getBooleanExtra("AUTO_START", false)) {
+            val service = UIAgentAccessibilityService.instance
+            if (service != null) {
+                val task = intent.getStringExtra("TASK") ?: "Test task"
+                service.startAgentLoop(task)
+                intent.removeExtra("AUTO_START")
+            }
+        }
     }
 
     private fun isAccessibilityServiceEnabled(context: Context): Boolean {
