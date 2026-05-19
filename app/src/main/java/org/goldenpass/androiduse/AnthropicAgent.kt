@@ -84,7 +84,7 @@ class AnthropicAgent(apiKey: String, private val modelName: String = "claude-3-5
         </rules>
     """.trimIndent()
 
-    override suspend fun getNextAction(prompt: String, screenshot: Bitmap, uiTree: String): String? = withContext(Dispatchers.IO) {
+    override suspend fun getNextAction(history: List<ChatMessage>, screenshot: Bitmap, uiTree: String): String? = withContext(Dispatchers.IO) {
         val displayMetrics = Resources.getSystem().displayMetrics
         val screenWidth = displayMetrics.widthPixels
         val screenHeight = displayMetrics.heightPixels
@@ -108,11 +108,18 @@ class AnthropicAgent(apiKey: String, private val modelName: String = "claude-3-5
             resizedScreenshot.recycle()
         }
 
+        val historyStr = history.joinToString("\n") { 
+            if (it.isUser) "USER: ${it.text}" else "AI: ${it.text}"
+        }
+
         val userPrompt = """
-            TASK: $prompt
+            CONVERSATION HISTORY:
+            $historyStr
             
             CURRENT UI TREE (Normalized Centers):
             $normalizedUiTree
+            
+            Based on the history and the current screen, what is the NEXT action?
         """.trimIndent()
 
         try {

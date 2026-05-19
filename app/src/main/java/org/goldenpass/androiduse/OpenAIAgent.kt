@@ -16,7 +16,7 @@ import java.io.ByteArrayOutputStream
 class OpenAIAgent(apiKey: String, private val modelName: String = "gpt-5.4") : IAgent {
     private val openai = OpenAI(apiKey)
 
-    override suspend fun getNextAction(prompt: String, screenshot: Bitmap, uiTree: String): String? = withContext(Dispatchers.IO) {
+    override suspend fun getNextAction(history: List<ChatMessage>, screenshot: Bitmap, uiTree: String): String? = withContext(Dispatchers.IO) {
         val displayMetrics = Resources.getSystem().displayMetrics
         val screenWidth = displayMetrics.widthPixels
         val screenHeight = displayMetrics.heightPixels
@@ -91,11 +91,18 @@ class OpenAIAgent(apiKey: String, private val modelName: String = "gpt-5.4") : I
             - If the task is finished, return the "done" action.
         """.trimIndent()
 
+        val historyStr = history.joinToString("\n") { 
+            if (it.isUser) "USER: ${it.text}" else "AI: ${it.text}"
+        }
+
         val userPrompt = """
-            TASK: $prompt
+            CONVERSATION HISTORY:
+            $historyStr
             
             CURRENT UI TREE (Normalized Centers):
             $normalizedUiTree
+            
+            Based on the history and the current screen, what is the NEXT action?
         """.trimIndent()
 
         try {

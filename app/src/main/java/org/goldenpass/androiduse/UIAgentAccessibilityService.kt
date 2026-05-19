@@ -24,8 +24,11 @@ import android.view.MotionEvent
 import android.widget.TextView
 import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.EditText
+import android.widget.ScrollView
 import android.widget.Toast
 import android.util.TypedValue
+import android.view.accessibility.AccessibilityWindowInfo
 import androidx.annotation.RequiresApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -48,6 +51,11 @@ class UIAgentAccessibilityService : AccessibilityService() {
     private lateinit var stepTextView: TextView
     private lateinit var modelTextView: TextView
     private var currentModelName: String = ""
+    private var conversationHistory = mutableListOf<ChatMessage>()
+    private var chatOverlayView: View? = null
+    private var isChatVisible = false
+    private lateinit var chatMessageContainer: LinearLayout
+    private lateinit var chatScrollView: ScrollView
 
     private var currentStepCount = 0
     private var lastActionJson: String? = null
@@ -118,15 +126,20 @@ class UIAgentAccessibilityService : AccessibilityService() {
         lastActionJson = null
         repeatCount = 0
         
+        if (conversationHistory.none { it.isUser && it.text == taskDescription }) {
+            conversationHistory.add(ChatMessage(taskDescription, true))
+            updateChatUI()
+        }
+        
         showOverlay()
         updateOverlay("Starting...", 0, currentModelName)
         
         serviceScope.launch {
-            processNextStep(taskDescription)
+            processNextStep()
         }
     }
 
-    private suspend fun processNextStep(taskDescription: String) {
+    private suspend fun processNextStep() {
         if (!isProcessing) return
         
         currentStepCount++
@@ -138,7 +151,9 @@ class UIAgentAccessibilityService : AccessibilityService() {
         updateOverlay("Capturing screen...", currentStepCount)
         Log.d("UIAgentAccessibilityService", "Capturing screen for step $currentStepCount...")
         
-        captureScreenshot(mainExecutor) { bitmap ->
+        val targetWindowId = rootInActiveWindow?.windowId ?: -1
+        
+        captureScreenshot(mainExecutor, targetWindowId) { bitmap ->
             if (bitmap == null) {
                 Log.e("UIAgentAccessibilityService", "Failed to capture screenshot")
                 isProcessing = false
@@ -157,9 +172,9 @@ class UIAgentAccessibilityService : AccessibilityService() {
             
             serviceScope.launch {
                 updateOverlay("Thinking...", currentStepCount)
-                val agentResponse = agent?.getNextAction(taskDescription, softwareBitmap, uiTree)
+                val agentResponse = agent?.getNextAction(conversationHistory, softwareBitmap, uiTree)
                 if (agentResponse != null) {
-                    handleAgentAction(agentResponse, taskDescription)
+                    handleAgentAction(agentResponse)
                 } else {
                     Log.e("UIAgentAccessibilityService", "No response from Agent")
                     isProcessing = false
@@ -168,7 +183,7 @@ class UIAgentAccessibilityService : AccessibilityService() {
         }
     }
 
-    private suspend fun handleAgentAction(jsonResponse: String, taskDescription: String) {
+    private suspend fun handleAgentAction(jsonResponse: String) {
         try {
             val jsonStr = if (jsonResponse.contains("{")) {
                 jsonResponse.substring(jsonResponse.indexOf("{"), jsonResponse.lastIndexOf("}") + 1)
@@ -178,7 +193,11 @@ class UIAgentAccessibilityService : AccessibilityService() {
             val action = json.optString("action")
             val thought = json.optString("thought", "No reasoning provided")
             
-            // Loop detection based on action content, ignoring the 'thought' field
+            // Add AI thought to conversation if it's new
+            if (thought.isNotBlank()) {
+                conversationHistory.add(ChatMessage(thought, false))
+                updateChatUI()
+            }
             val actionContent = JSONObject(json.toString()).apply { remove("thought") }.toString()
             if (actionContent == lastActionJson) {
                 repeatCount++
@@ -203,7 +222,7 @@ class UIAgentAccessibilityService : AccessibilityService() {
                     delay(800)
                     performClickAt(x, y)
                     delay(2000)
-                    processNextStep(taskDescription)
+                    processNextStep()
                 }
                 "type" -> {
                     val text = json.getString("text")
@@ -212,7 +231,7 @@ class UIAgentAccessibilityService : AccessibilityService() {
                     delay(800)
                     typeText(text)
                     delay(2000)
-                    processNextStep(taskDescription)
+                    processNextStep()
                 }
                 "swipe" -> {
                     val startX = json.getDouble("startX").toFloat()
@@ -226,14 +245,18 @@ class UIAgentAccessibilityService : AccessibilityService() {
                     delay(300)
                     performSwipe(startX, startY, endX, endY)
                     delay(2000)
-                    processNextStep(taskDescription)
+                    processNextStep()
                 }
                 "done" -> {
                     Log.i("UIAgentAccessibilityService", "Task completed!")
+                    conversationHistory.add(ChatMessage("Task Completed Successfully!", false))
+                    updateChatUI()
                     stopWithNotification("Task Completed Successfully!")
                 }
                 else -> {
                     Log.w("UIAgentAccessibilityService", "Unknown action: $action")
+                    conversationHistory.add(ChatMessage("Error: Unknown action received: $action", false))
+                    updateChatUI()
                     stopWithNotification("Unknown action received: $action")
                 }
             }
@@ -318,7 +341,24 @@ class UIAgentAccessibilityService : AccessibilityService() {
     }
 
     @RequiresApi(Build.VERSION_CODES.R)
-    fun captureScreenshot(executor: Executor, callback: (Bitmap?) -> Unit) {
+    fun captureScreenshot(executor: Executor, windowId: Int = -1, callback: (Bitmap?) -> Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && windowId != -1) {
+            takeScreenshotOfWindow(windowId, executor, object : TakeScreenshotCallback {
+                override fun onSuccess(screenshot: ScreenshotResult) {
+                    val bitmap = Bitmap.wrapHardwareBuffer(screenshot.hardwareBuffer, screenshot.colorSpace)
+                    callback(bitmap)
+                }
+                override fun onFailure(errorCode: Int) {
+                    Log.e("UIAgentAccessibilityService", "Window screenshot failed ($errorCode), falling back")
+                    captureScreenshotLegacy(executor, callback)
+                }
+            })
+        } else {
+            captureScreenshotLegacy(executor, callback)
+        }
+    }
+
+    private fun captureScreenshotLegacy(executor: Executor, callback: (Bitmap?) -> Unit) {
         takeScreenshot(Display.DEFAULT_DISPLAY, executor, object : TakeScreenshotCallback {
             override fun onSuccess(screenshot: ScreenshotResult) {
                 val bitmap = Bitmap.wrapHardwareBuffer(screenshot.hardwareBuffer, screenshot.colorSpace)
@@ -380,6 +420,15 @@ class UIAgentAccessibilityService : AccessibilityService() {
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
 
+        val chatButton = TextView(this).apply {
+            text = "💬"
+            textSize = 20f
+            setPadding(20, 0, 20, 0)
+            setOnClickListener {
+                toggleChat()
+            }
+        }
+
         stepTextView = TextView(this).apply {
             text = "Step 0/$MAX_STEPS"
             setTextColor(Color.LTGRAY)
@@ -402,6 +451,7 @@ class UIAgentAccessibilityService : AccessibilityService() {
 
         topRow.addView(dragHandle)
         topRow.addView(modelTextView)
+        topRow.addView(chatButton)
         topRow.addView(stepTextView)
         topRow.addView(stopButton)
 
@@ -447,6 +497,11 @@ class UIAgentAccessibilityService : AccessibilityService() {
                         params.x = initialX + (event.rawX - initialTouchX).toInt()
                         params.y = initialY + (event.rawY - initialTouchY).toInt()
                         windowManager.updateViewLayout(root, params)
+                        
+                        // Sync chat overlay position
+                        if (isChatVisible) {
+                            updateChatPosition(params.x, params.y + root.height + 20)
+                        }
                         return true
                     }
                 }
@@ -462,7 +517,126 @@ class UIAgentAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun toggleChat() {
+        if (isChatVisible) {
+            hideChatOverlay()
+        } else {
+            showChatOverlay()
+        }
+    }
+
+    private fun showChatOverlay() {
+        if (chatOverlayView != null) return
+        isChatVisible = true
+
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#EE111111"))
+                cornerRadius = 24f
+            }
+            setPadding(20, 20, 20, 20)
+        }
+
+        chatScrollView = ScrollView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                (resources.displayMetrics.heightPixels * 0.4).toInt()
+            )
+        }
+
+        chatMessageContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        chatScrollView.addView(chatMessageContainer)
+
+        val inputRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, 10, 0, 0)
+        }
+
+        val inputField = EditText(this).apply {
+            hint = "Send instruction..."
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.GRAY)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+
+        val sendButton = Button(this).apply {
+            text = "SEND"
+            setOnClickListener {
+                val text = inputField.text.toString()
+                if (text.isNotBlank()) {
+                    conversationHistory.add(ChatMessage(text, true))
+                    inputField.setText("")
+                    updateChatUI()
+                    if (!isProcessing) {
+                        startAgentLoop(text)
+                    }
+                }
+            }
+        }
+
+        inputRow.addView(inputField)
+        inputRow.addView(sendButton)
+
+        root.addView(chatScrollView)
+        root.addView(inputRow)
+
+        val barParams = overlayView?.layoutParams as? WindowManager.LayoutParams
+        val params = WindowManager.LayoutParams(
+            (resources.displayMetrics.widthPixels * 0.95).toInt(),
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, // Allow interaction with keyboard
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            x = barParams?.x ?: 0
+            y = (barParams?.y ?: 100) + (overlayView?.height ?: 200) + 20
+        }
+
+        chatOverlayView = root
+        windowManager.addView(chatOverlayView, params)
+        updateChatUI()
+    }
+
+    private fun hideChatOverlay() {
+        chatOverlayView?.let {
+            windowManager.removeView(it)
+            chatOverlayView = null
+        }
+        isChatVisible = false
+    }
+
+    private fun updateChatPosition(x: Int, y: Int) {
+        chatOverlayView?.let {
+            val params = it.layoutParams as WindowManager.LayoutParams
+            params.x = x
+            params.y = y
+            windowManager.updateViewLayout(it, params)
+        }
+    }
+
+    private fun updateChatUI() {
+        Handler(Looper.getMainLooper()).post {
+            if (!::chatMessageContainer.isInitialized) return@post
+            chatMessageContainer.removeAllViews()
+            conversationHistory.takeLast(10).forEach { msg ->
+                val tv = TextView(this).apply {
+                    text = if (msg.isUser) "👤: ${msg.text}" else "🤖: ${msg.text}"
+                    setTextColor(if (msg.isUser) Color.CYAN else Color.WHITE)
+                    setPadding(0, 5, 0, 5)
+                    textSize = 13f
+                }
+                chatMessageContainer.addView(tv)
+            }
+            chatScrollView.post { chatScrollView.fullScroll(View.FOCUS_DOWN) }
+        }
+    }
+
     private fun hideOverlay() {
+        hideChatOverlay()
         overlayView?.let {
             try {
                 windowManager.removeView(it)
@@ -493,6 +667,11 @@ class UIAgentAccessibilityService : AccessibilityService() {
 
     fun getClickableElementsJson(): String {
         val rootNode = rootInActiveWindow ?: return "[]"
+        // Ensure we are only traversing the target app's window
+        if (rootNode.packageName == packageName) {
+            Log.w("UIAgentAccessibilityService", "Root node belongs to our service, skipping UI tree")
+            return "[]"
+        }
         val clickableItems = JSONArray()
         traverseAndCollectClickable(rootNode, clickableItems)
         return clickableItems.toString()

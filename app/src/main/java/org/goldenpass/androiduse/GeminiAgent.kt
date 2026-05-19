@@ -74,7 +74,7 @@ class GeminiAgent(private val apiKey: String, modelName: String = "gemini-3.1-pr
         }
     )
 
-    override suspend fun getNextAction(prompt: String, screenshot: Bitmap, uiTree: String): String? = withContext(Dispatchers.IO) {
+    override suspend fun getNextAction(history: List<ChatMessage>, screenshot: Bitmap, uiTree: String): String? = withContext(Dispatchers.IO) {
         val displayMetrics = Resources.getSystem().displayMetrics
         val screenWidth = displayMetrics.widthPixels
         val screenHeight = displayMetrics.heightPixels
@@ -96,11 +96,19 @@ class GeminiAgent(private val apiKey: String, modelName: String = "gemini-3.1-pr
             screenshot
         }
 
+        // 3. Build the prompt from history
+        val historyStr = history.joinToString("\n") { 
+            if (it.isUser) "USER: ${it.text}" else "AI: ${it.text}"
+        }
+
         val userPrompt = """
-            TASK: $prompt
+            CONVERSATION HISTORY:
+            $historyStr
             
             CURRENT UI TREE (Normalized Centers):
             $normalizedUiTree
+            
+            Based on the history and the current screen, what is the NEXT action?
         """.trimIndent()
 
         Log.d("GeminiAgent", "REQUEST SEND TO LLM (Model: ${model.modelName}):")
@@ -116,7 +124,7 @@ class GeminiAgent(private val apiKey: String, modelName: String = "gemini-3.1-pr
             val result = response.text?.trim()
             Log.d("GeminiAgent", "RESPONSE FROM LLM: ${result ?: "EMPTY RESPONSE"}")
             
-            // 3. Post-process the result: Convert 0-1000 back to absolute pixels
+            // 4. Post-process the result: Convert 0-1000 back to absolute pixels
             return@withContext denormalizeResponse(result, screenWidth, screenHeight)
         } catch (e: Exception) {
             Log.e("GeminiAgent", "API Error detail: ", e)
