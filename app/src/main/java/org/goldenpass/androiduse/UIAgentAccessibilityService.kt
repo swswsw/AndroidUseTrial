@@ -342,7 +342,7 @@ class UIAgentAccessibilityService : AccessibilityService() {
 
     @RequiresApi(Build.VERSION_CODES.R)
     fun captureScreenshot(executor: Executor, windowId: Int = -1, callback: (Bitmap?) -> Unit) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && windowId != -1) {
+        if (windowId != -1) {
             takeScreenshotOfWindow(windowId, executor, object : TakeScreenshotCallback {
                 override fun onSuccess(screenshot: ScreenshotResult) {
                     val bitmap = Bitmap.wrapHardwareBuffer(screenshot.hardwareBuffer, screenshot.colorSpace)
@@ -383,7 +383,7 @@ class UIAgentAccessibilityService : AccessibilityService() {
     private fun stopWithNotification(message: String) {
         Log.w("UIAgentAccessibilityService", message)
         isProcessing = false
-        hideOverlay()
+        // Removed hideOverlay() to allow user to see result
         Handler(Looper.getMainLooper()).post {
             Toast.makeText(this, message, Toast.LENGTH_LONG).show()
         }
@@ -442,7 +442,11 @@ class UIAgentAccessibilityService : AccessibilityService() {
             setTextColor(Color.WHITE)
             textSize = 18f
             setOnClickListener {
-                stopWithNotification("Agent stopped by user.")
+                if (isProcessing) {
+                    stopWithNotification("Agent stopped by user.")
+                } else {
+                    hideOverlay()
+                }
             }
             // Make it square
             val buttonSize = (40 * resources.displayMetrics.density).toInt()
@@ -577,7 +581,19 @@ class UIAgentAccessibilityService : AccessibilityService() {
             }
         }
 
+        val clearButton = TextView(this).apply {
+            text = "🗑️"
+            textSize = 20f
+            setPadding(20, 0, 10, 0)
+            setOnClickListener {
+                conversationHistory.clear()
+                updateChatUI()
+                Toast.makeText(this@UIAgentAccessibilityService, "Chat Context Cleared", Toast.LENGTH_SHORT).show()
+            }
+        }
+
         inputRow.addView(inputField)
+        inputRow.addView(clearButton)
         inputRow.addView(sendButton)
 
         root.addView(chatScrollView)
