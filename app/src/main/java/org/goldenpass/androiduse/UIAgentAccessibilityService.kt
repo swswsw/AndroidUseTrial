@@ -52,7 +52,7 @@ class UIAgentAccessibilityService : AccessibilityService() {
     private var currentStepCount = 0
     private var lastActionJson: String? = null
     private var repeatCount = 0
-    private val MAX_STEPS = 20
+    private val MAX_STEPS = 30
     private val MAX_REPEATS = 7
 
     companion object {
