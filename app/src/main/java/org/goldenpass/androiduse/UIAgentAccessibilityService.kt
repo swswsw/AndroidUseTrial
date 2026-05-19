@@ -388,13 +388,16 @@ class UIAgentAccessibilityService : AccessibilityService() {
         }
 
         val stopButton = Button(this).apply {
-            text = "STOP"
+            text = "■"
             setBackgroundColor(Color.RED)
             setTextColor(Color.WHITE)
-            textSize = 12f
+            textSize = 18f
             setOnClickListener {
                 stopWithNotification("Agent stopped by user.")
             }
+            // Make it square
+            val buttonSize = (40 * resources.displayMetrics.density).toInt()
+            layoutParams = LinearLayout.LayoutParams(buttonSize, buttonSize)
         }
 
         topRow.addView(dragHandle)
